@@ -19,11 +19,21 @@ function TrashIcon() {
   )
 }
 
+function PencilIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  )
+}
+
 export default function Home() {
   const { isLoggedIn, displayName } = useAuth()
-  const { workouts, exercises, selectedWorkout, setSelectedWorkout, addWorkout, deleteWorkout, addExercise, deleteExercise, loading, error } = useWorkout()
+  const { workouts, exercises, selectedWorkout, setSelectedWorkout, addWorkout, deleteWorkout, addExercise, updateExercise, deleteExercise, loading, error } = useWorkout()
   const { t } = useLang()
   const [form, setForm] = useState(EMPTY)
+  const [editingExercise, setEditingExercise] = useState(null)
   const [flash, setFlash] = useState(false)
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
@@ -69,12 +79,22 @@ export default function Home() {
 
     setSaving(true)
     try {
-      await addExercise({
-        name: form.name.trim(),
-        sets: Number(form.sets),
-        reps: Number(form.reps),
-        weight: form.weight ? Number(form.weight) : 0,
-      })
+      if (editingExercise) {
+        await updateExercise(editingExercise.id, {
+          name: form.name.trim(),
+          sets: Number(form.sets),
+          reps: Number(form.reps),
+          weight: form.weight ? Number(form.weight) : 0,
+        })
+        setEditingExercise(null)
+      } else {
+        await addExercise({
+          name: form.name.trim(),
+          sets: Number(form.sets),
+          reps: Number(form.reps),
+          weight: form.weight ? Number(form.weight) : 0,
+        })
+      }
       setForm(EMPTY)
       setFlash(true)
       setTimeout(() => setFlash(false), 1800)
@@ -83,6 +103,19 @@ export default function Home() {
     } finally {
       setSaving(false)
     }
+  }
+
+  function handleEdit(ex) {
+    setEditingExercise(ex)
+    setForm({ name: ex.name, sets: String(ex.sets), reps: String(ex.reps), weight: ex.weight > 0 ? String(ex.weight) : '' })
+    setErrors({})
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function handleCancelEdit() {
+    setEditingExercise(null)
+    setForm(EMPTY)
+    setErrors({})
   }
 
   async function handleDelete(id) {
@@ -255,8 +288,13 @@ export default function Home() {
                   <div className="input-group">
                     <label className="input-label" style={{ visibility: 'hidden' }}>Submit</label>
                     <button type="submit" className={`btn btn--block${flash ? ' btn--success' : ' btn--primary'}`} disabled={saving}>
-                      {flash ? t('added') : saving ? t('saving') : t('addExercise')}
+                      {flash ? (editingExercise ? '✓ Saved' : t('added')) : saving ? t('saving') : editingExercise ? 'Save Changes' : t('addExercise')}
                     </button>
+                    {editingExercise && (
+                      <button type="button" className="btn btn--outline btn--sm" style={{ marginTop: '0.5rem', width: '100%' }} onClick={handleCancelEdit}>
+                        {t('cancel')}
+                      </button>
+                    )}
                   </div>
                 </div>
               </form>
@@ -286,12 +324,15 @@ export default function Home() {
                   </div>
                   <div className="day-section__exercises">
                     {exercises.map((ex) => (
-                      <div key={ex.id} className="ex-row">
+                      <div key={ex.id} className={`ex-row${editingExercise?.id === ex.id ? ' ex-row--editing' : ''}`}>
                         <span className="ex-row__name">{ex.name}</span>
                         <span className="ex-row__sets">{ex.sets} × {ex.reps}</span>
                         <span className="ex-row__weight">
                           {ex.weight > 0 ? `${ex.weight} kg` : 'Bodyweight'}
                         </span>
+                        <button className="ex-row__edit" onClick={() => handleEdit(ex)} title="Edit" aria-label="Edit exercise">
+                          <PencilIcon />
+                        </button>
                         <button className="ex-row__delete" onClick={() => handleDelete(ex.id)} title="Remove" aria-label="Remove exercise">
                           <TrashIcon />
                         </button>
